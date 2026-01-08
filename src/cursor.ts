@@ -2,6 +2,7 @@ import { uniform } from "three/tsl";
 import * as boiler from "./boiler";
 import * as THREE from "three/webgpu";
 
+
 // cursor NDC uniform
 export const uCursor = uniform(new THREE.Vector3(0, 0, 0));
 
@@ -29,9 +30,9 @@ function updateCursor(clientX: number, clientY: number) {
 }
 
 // --- unified event listeners ---
-window.addEventListener("mousemove", (e) => updateCursor(e.clientX, e.clientY));
+boiler.canvas.addEventListener("mousemove", (e) => updateCursor(e.clientX, e.clientY));
 
-window.addEventListener(
+boiler.canvas.addEventListener(
   "touchmove",
   (e) => {
     e.preventDefault(); // prevent scrolling
