@@ -30,7 +30,7 @@ interface HalftoneSettings {
 
 let halftoneSettings: HalftoneSettings[] = [
   {
-    count: 180,
+    count: 100,
     color: 'yellow',
     direction: new THREE.Vector3(0.5, 0.5, 1),
     start: 0.55,
