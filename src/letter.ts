@@ -1,14 +1,14 @@
 import "./style.css";
 import * as boiler from "./boiler";
 import * as THREE from "three/webgpu";
-import { texture, vec3, exp, uniform, positionLocal, vec4, output } from "three/tsl";
+import { texture, vec3, exp, uniform, positionLocal , output } from "three/tsl";
 import { texLoader } from "./main";
 import { halftones } from "./halftones";
 import { uCursor } from "./cursor";
 
 
 // --- GUI ---
-export const letterGui = boiler.renderer.inspector.createParameters("Letter");
+export const letterGui = (boiler.renderer.inspector as any).createParameters("Letter");
 
 // GUI-controlled deformation uniforms
 export const uRadius = uniform(15.0);

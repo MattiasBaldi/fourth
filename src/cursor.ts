@@ -1,4 +1,4 @@
-import { uniform, Fn } from "three/tsl";
+import { uniform } from "three/tsl";
 import * as boiler from "./boiler";
 import * as THREE from "three/webgpu";
 

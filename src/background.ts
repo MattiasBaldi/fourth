@@ -1,31 +1,67 @@
 import {
-  vec2, vec3, vec4, texture, exp, float, uniform, positionLocal, uv, time, hash
+  vec2,
+  vec3,
+  vec4,
+  texture,
+  exp,
+  float,
+  uniform,
+  positionLocal,
+  uv,
+  time,
+  hash,
 } from "three/tsl";
 import * as THREE from "three/webgpu";
 import * as boiler from "./boiler";
 import { uCursor } from "./cursor";
-import { simplexNoise } from "tsl-textures";
-import fogNoise from "/fognoise.jpg"
 import { texLoader } from "./main";
 
-// --- GUI ---
-const bgGui = boiler.renderer.inspector.createParameters("Background");
+// 
+const bgGui = (boiler.renderer.inspector as any).createParameters(
+  "Background"
+);
 
 // --- Settings config ---
-let bgSettings = [
+interface BGUniforms {
+  speed: ReturnType<typeof uniform>;
+  uvScale: ReturnType<typeof uniform>;
+  stripeCount: ReturnType<typeof uniform>;
+  decay: ReturnType<typeof uniform>;
+  radius: ReturnType<typeof uniform>;
+  strength: ReturnType<typeof uniform>;
+  falloff: ReturnType<typeof uniform>;
+  noiseScale: ReturnType<typeof uniform>;
+  noiseStrength: ReturnType<typeof uniform>;
+  noiseBalance: ReturnType<typeof uniform>;
+  noiseContrast: ReturnType<typeof uniform>;
+  noiseSeed: ReturnType<typeof uniform>;
+}
+
+interface BGSettings {
+  speed: number;
+  uvScale: number;
+  stripeCount: number;
+  decay: number;
+  radius: number;
+  strength: number;
+  falloff: number;
+  noiseScale: number;
+  noiseStrength: number;
+  noiseBalance: number;
+  noiseContrast: number;
+  noiseSeed: number;
+  uniforms?: BGUniforms;
+}
+
+let bgSettings: BGSettings[] = [
   {
-
-    speed: 1, 
-
+    speed: 1,
     uvScale: 200,
     stripeCount: 100,
     decay: 0.96,
-
     radius: 1.0,
     strength: 0.25,
     falloff: 8.0,
-
-    // Noise parameters
     noiseScale: 0.5,
     noiseStrength: 0,
     noiseBalance: 0.25,
@@ -35,45 +71,34 @@ let bgSettings = [
 ];
 
 // --- Build uniforms + inspector ---
-for (const index in bgSettings) {
-  const settings = bgSettings[index];
-  const uniforms: any = {};
-
-  uniforms.speed     = uniform(settings.speed);
-
-  uniforms.uvScale     = uniform(settings.uvScale);
-  uniforms.stripeCount = uniform(settings.stripeCount);
-  uniforms.decay       = uniform(settings.decay);
-
-  uniforms.radius   = uniform(settings.radius);
-  uniforms.strength = uniform(settings.strength);
-  uniforms.falloff  = uniform(settings.falloff);
-
-  // Noise uniforms
-  uniforms.noiseScale    = uniform(settings.noiseScale);
-  uniforms.noiseStrength = uniform(settings.noiseStrength);
-  uniforms.noiseBalance  = uniform(settings.noiseBalance);
-  uniforms.noiseContrast = uniform(settings.noiseContrast);
-  uniforms.noiseSeed     = uniform(settings.noiseSeed);
+for (const settings of bgSettings) {
+  const uniforms: BGUniforms = {
+    speed: uniform(settings.speed),
+    uvScale: uniform(settings.uvScale),
+    stripeCount: uniform(settings.stripeCount),
+    decay: uniform(settings.decay),
+    radius: uniform(settings.radius),
+    strength: uniform(settings.strength),
+    falloff: uniform(settings.falloff),
+    noiseScale: uniform(settings.noiseScale),
+    noiseStrength: uniform(settings.noiseStrength),
+    noiseBalance: uniform(settings.noiseBalance),
+    noiseContrast: uniform(settings.noiseContrast),
+    noiseSeed: uniform(settings.noiseSeed),
+  };
 
   settings.uniforms = uniforms;
 
-  const bgFolder = bgGui.addFolder(`🌌 background ${index}`);
-
-
+  const bgFolder = bgGui.addFolder("🌌 background");
   bgFolder.add(uniforms.speed, "value", 0, 10, 0.001).name("speed");
-
   bgFolder.add(uniforms.uvScale, "value", 1, 200, 1).name("UV Scale");
   bgFolder.add(uniforms.stripeCount, "value", 1, 200, 1).name("Stripe Count");
   bgFolder.add(uniforms.decay, "value", 0.5, 1.0, 0.01).name("Decay");
-
   bgFolder.add(uniforms.radius, "value", 0, 10, 0.01).name("Radius");
   bgFolder.add(uniforms.strength, "value", 0, 2, 0.01).name("Strength");
   bgFolder.add(uniforms.falloff, "value", 1, 20, 0.1).name("Falloff");
 
-
-  const noiseFolder = bgGui.addFolder(`noise`);
-
+  const noiseFolder = bgGui.addFolder("noise");
   noiseFolder.add(uniforms.noiseScale, "value", 0, 10, 0.1).name("Noise Scale");
   noiseFolder.add(uniforms.noiseStrength, "value", 0.0, 1.0, 0.01).name("Noise Opacity");
   noiseFolder.add(uniforms.noiseBalance, "value", -1.0, 1.0, 0.01).name("Noise Balance");
@@ -82,42 +107,30 @@ for (const index in bgSettings) {
 }
 
 // --- Background mesh ---
-export const background = (prevTexture?: THREE.Texture) => {
+export const background = (prevTexture?: THREE.Texture): THREE.Mesh => {
   const mat = new THREE.MeshBasicNodeMaterial();
-  const mesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(50, 50, 1, 1),
-    mat
-  );
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(50, 50, 1, 1), mat);
 
-  // uniforms
-  const s = bgSettings[0].uniforms;
+  const s = bgSettings[0].uniforms!;
+  const speed = time.mul(s.speed);
 
-
-  const speed = time.mul(s.speed)
-
-  // UV + stripes
-  const scaledUV   = uv().mul(s.uvScale);
-  const snapped    = speed.mul(10).floor();
-  const stripeId   = scaledUV.y.mul(s.stripeCount).floor();
+  const scaledUV = uv().mul(s.uvScale);
+  const snapped = speed.mul(10).floor();
+  const stripeId = scaledUV.y.mul(s.stripeCount).floor();
   const glitchedUV = vec2(scaledUV.x.add(stripeId.add(snapped)), scaledUV.y);
 
-  // grain
   const grain = hash(glitchedUV.add(speed)).mul(0.08);
 
-  // Noise
   const fogNoiseTex = texLoader.load(`./fognoise.jpg`);
-  const fogNoiseMap = texture( fogNoiseTex, uv().mul( s.noiseScale ) );
-  const n01 = fogNoiseMap.add(float(1.0).mul(s.noiseBalance)).mul(0.5).add(0.5); // 0..1
+  const fogNoiseMap = texture(fogNoiseTex, uv().mul(s.noiseScale));
+  const n01 = fogNoiseMap.add(float(1.0).mul(s.noiseBalance)).mul(0.5).add(0.5);
   const maskAlpha = n01.mix(1.0, s.noiseStrength);
 
-  // Cursor deformation (optional, additive)
   const dist = positionLocal.distance(uCursor);
-  const deformation = exp(dist.pow(2).div(s.radius.pow(2)).mul(s.falloff.mul(-1))).mul(s.strength); //prettier-ignore
+  const deformation = exp(dist.pow(2).div(s.radius.pow(2)).mul(s.falloff.mul(-1))).mul(s.strength);
 
-  // Base color with noise mask applied globally
   let baseColor = vec3(0.0, 0.0, 0.0).add(grain).mul(maskAlpha);
 
-  // Feedback trail
   if (prevTexture) {
     const prevColor = new THREE.TextureNode(prevTexture);
     baseColor = baseColor.add(prevColor.mul(s.decay).add(deformation.mul(100)));
